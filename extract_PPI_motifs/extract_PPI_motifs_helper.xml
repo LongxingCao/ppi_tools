@@ -1,0 +1,103 @@
+<ROSETTASCRIPTS>
+    <SCOREFXNS>
+        <ScoreFunction name="sfxn" weights="beta_nov16" />
+        <ScoreFunction name="sfxn_soft" weights="beta_nov16_soft" />
+
+        <ScoreFunction name="vdw_sol" weights="empty" >
+            <Reweight scoretype="fa_atr" weight="1.0" />
+            <Reweight scoretype="fa_rep" weight="0.55" />
+            <Reweight scoretype="fa_sol" weight="1.0" />
+        </ScoreFunction>
+    </SCOREFXNS>
+    <RESIDUE_SELECTORS>
+        <ResiduePDBInfoHasLabel name="RIF_Res" property="RIFRES" />
+        <Chain name="chainA" chains="A"/>
+        <Chain name="chainB" chains="B"/>
+        <Neighborhood name="interface_chA" selector="chainB" distance="8.0" />
+        <Neighborhood name="interface_chB" selector="chainA" distance="8.0" />
+        <And name="AB_interface" selectors="interface_chA,interface_chB" />
+        <Not name="Not_interface" selector="AB_interface" />
+        <And name="actual_interface_chB" selectors="AB_interface,chainB" />
+        ResidueName name="ala" residue_name3="ALA" />
+        Not name="Not_ala" selector="ala" />
+        And name="RIF_Res_not_ala" selectors="RIF_Res,Not_ala" />
+
+	<ResidueName name="pro_and_gly_positions" residue_name3="PRO,GLY" />
+        <ResidueName name="apolar" residue_name3="ALA,CYS,PHE,ILE,LEU,MET,THR,PRO,VAL,TRP,TYR" />
+        <Not name="polar" selector="apolar" />
+    </RESIDUE_SELECTORS>
+    <TASKOPERATIONS>
+        <ProteinInterfaceDesign name="pack_long" design_chain1="0" design_chain2="0" jump="1" interface_distance_cutoff="15"/>
+
+    </TASKOPERATIONS>
+    <MOVERS>
+        <SwitchChainOrder name="chain1onlypre" chain_order="1" />
+        <ScoreMover name="scorepose" scorefxn="sfxn" verbose="false" />
+        <ParsedProtocol name="chain1only">
+            <Add mover="chain1onlypre" />
+            <Add mover="scorepose" />
+        </ParsedProtocol>
+        <TaskAwareMinMover name="min" scorefxn="sfxn" bb="0" chi="1" task_operations="pack_long" />
+
+        <DeleteRegionMover name="delete_polar" residue_selector="polar" rechain="false" />
+
+    </MOVERS>
+    <FILTERS>
+        
+        <Sasa name="interface_buried_sasa" confidence="0" />
+        
+        ################################### I think we should turn the repack_bound to false, but maybe not! ########################################################
+        <Ddg name="ddg_norepack"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="sfxn" />
+
+        
+        <ShapeComplementarity name="interface_sc" verbose="0" min_sc="0.55" write_int_area="1" jump="1" confidence="0"/>
+
+        
+        ### score function monomer terms
+        <ScoreType name="total_score_MBF" scorefxn="sfxn" score_type="total_score" threshold="0" confidence="0" />
+        <MoveBeforeFilter name="total_score_monomer" mover="chain1only" filter="total_score_MBF" confidence="0" />
+        <ResidueCount name="res_count_MBF" max_residue_count="9999" confidence="0"/>
+        <MoveBeforeFilter name="res_count_monomer" mover="chain1only" filter="res_count_MBF" confidence="0" />
+
+           
+        <CalculatorFilter name="score_per_res" equation="total_score_monomer / res" threshold="-3.5" confidence="0">
+            <Var name="total_score_monomer" filter="total_score_monomer"/>
+            <Var name="res" filter="res_count_monomer"/>
+        </CalculatorFilter>
+
+           
+
+        
+
+        <BuriedUnsatHbonds name="buns_heavy_ball_1.1" use_reporter_behavior="false" report_all_heavy_atom_unsats="true" scorefxn="sfxn" residue_selector="AB_interface" ignore_surface_res="false" print_out_info_to_pdb="true" confidence="0" use_ddG_style="true" burial_cutoff="0.01" dalphaball_sasa="true" probe_radius="1.1" />
+
+        <BuriedUnsatHbonds name="vbuns5.5_heavy_ball_1.1" use_reporter_behavior="false" report_all_heavy_atom_unsats="true" scorefxn="sfxn" residue_selector="AB_interface" ignore_surface_res="false" print_out_info_to_pdb="true" confidence="0" use_ddG_style="true" dalphaball_sasa="true" probe_radius="1.1" atomic_depth_selection="5.5" burial_cutoff="1000" burial_cutoff_apo="0.2" />
+        <BuriedUnsatHbonds name="sbuns5.5_heavy_ball_1.1" use_reporter_behavior="false" report_all_heavy_atom_unsats="true" scorefxn="sfxn" residue_selector="AB_interface" ignore_surface_res="false" print_out_info_to_pdb="true" confidence="0" use_ddG_style="true" burial_cutoff="0.01" dalphaball_sasa="true" probe_radius="1.1" atomic_depth_selection="5.5" atomic_depth_deeper_than="false" />
+
+
+
+        <InterfaceHydrophobicResidueContacts name="hydrophobic_residue_contacts" target_selector="chainB" binder_selector="chainA" scorefxn="sfxn_soft" confidence="0"/> 
+
+
+        <Ddg name="ddg_hydrophobic_pre"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="vdw_sol" />
+        <MoveBeforeFilter name="ddg_hydrophobic" mover="delete_polar" filter="ddg_hydrophobic_pre" confidence="0"/>
+
+
+    </FILTERS>
+
+    <APPLY_TO_POSE>
+    </APPLY_TO_POSE>
+    <PROTOCOLS>
+
+        <Add filter_name="interface_buried_sasa" />
+        <Add filter_name="ddg_norepack" />
+        <Add filter="ddg_hydrophobic" />
+        <Add filter_name="interface_sc" />
+        <Add filter_name="score_per_res" />
+        <Add filter="buns_heavy_ball_1.1" />
+        <Add filter="vbuns5.5_heavy_ball_1.1" />
+        Add filter="sbuns5.5_heavy_ball_1.1" />
+        <Add filter="hydrophobic_residue_contacts" />
+    </PROTOCOLS>
+    <OUTPUT />
+</ROSETTASCRIPTS>
