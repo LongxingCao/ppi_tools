@@ -11,6 +11,8 @@
 //
 // July 13, 2018 Longxing , change the type to float to make calculation faster.
 
+#include <iostream>
+
 #define white_space(c) ((c) == ' ' || (c) == '\t')
 #define valid_digit(c) ((c) >= '0' && (c) <= '9')
 
@@ -90,3 +92,14 @@ float str_to_float (const char *p)
 
     return sign * (frac ? (value / scale) : (value * scale));
 }
+
+
+bool endswith(std::string const &fullString, std::string const &ending) {
+    if (fullString.length() >= ending.length()) {
+        return (0 == fullString.compare (fullString.length() - ending.length(), ending.length(), ending));
+    } else {
+        return false;
+    }
+}
+
+

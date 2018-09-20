@@ -15,4 +15,6 @@
 
 float str_to_float (const char *p);
 
+bool endswith(std::string const &fullString, std::string const &ending);
+
 #endif
