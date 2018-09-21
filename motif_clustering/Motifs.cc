@@ -190,9 +190,129 @@ Motifs::~Motifs() {
 }
 
 
+int
+Motifs::find_the_best( std::vector<int> const & indices  ) {
 
-void
-Motifs::write_cluster_info( std::ostream & out, std::vector<int> const & indices  ) {
+    // Calculate this term
+    for ( int ind : indices ) {
+        nlohmann::json & js = get_json( ind );
+        js["ddg_per_1000_sasa"] = js["ddg_norepack"].get<float>() / js["interface_buried_sasa"].get<float>() * 1000;
+    }
+
+    // These are the filters we care about for sorting
+    std::vector<std::pair<std::string,bool>> sort_term_high_good {
+        { "interface_buried_sasa", true },
+        { "ddg_norepack", false },
+        { "interface_sc", true },
+        { "ddg_per_1000_sasa", false }
+    };
+
+    // Initialize the bests array
+    std::vector<float> bests;
+    for ( int i = 0; i < sort_term_high_good.size(); i++ ) {
+        bool high_good = sort_term_high_good[i].second;
+        if ( high_good ) {
+            bests.push_back( -1000 );
+        } else {
+            bests.push_back( 1000 );
+        }
+    }
+
+    // Find the actual bests
+
+    for ( int ind : indices ) {
+        nlohmann::json & js = get_json( ind );
+
+        for ( int i = 0; i < sort_term_high_good.size(); i++ ) {
+            std::string const & term = sort_term_high_good[i].first;
+            bool high_good = sort_term_high_good[i].second;
+            if ( high_good ) {
+                bests[i] = std::max<float>( bests[i], js[term].get<float>() );
+            } else {
+                bests[i] = std::min<float>( bests[i], js[term].get<float>() );
+            }
+        }
+    }
+
+
+    // Do a simple little algorithm
+    // Filter at frac_of best for each of the different terms
+    // If multiple pdbs exists, lower frac_of by frac_step
+    // If no pdbs exists, increase frac_of by frac_step
+    // If the direction changes, frac_step /= 2
+
+    float frac_of = 1.0;
+    float frac_step = 0.01;
+    bool frac_down = true;  // what direction we are currently going
+
+    int the_best = -1;
+
+    int iter = 0;
+    while ( the_best == -1 ) {
+
+        std::vector<int> best_contenders;
+
+        for ( int ind : indices ) {
+            nlohmann::json & js = get_json( ind );
+
+            bool passed_filters = true;
+            for ( int i = 0; i < sort_term_high_good.size(); i++ ) {
+                float cut_value = bests[i]*frac_of; 
+                std::string const & term = sort_term_high_good[i].first;
+                bool high_good = sort_term_high_good[i].second;
+
+                if ( high_good ) {
+                    passed_filters &= js[term] > cut_value;
+                } else {
+                    passed_filters &= js[term] < cut_value;
+                }
+            }
+
+            if ( passed_filters ) {
+                best_contenders.push_back( ind );
+            }
+        }
+
+        if ( best_contenders.size() == 1 ) {
+            the_best = best_contenders[0];
+        } else if ( best_contenders.size() == 0 ) {
+            // frac_of is too big!!
+
+            if ( ! frac_down ) frac_step /= 2;
+            frac_down = true;
+
+            frac_of -= frac_step;
+
+        } else {
+            // frac_of is too small!!
+
+            if ( frac_down ) frac_step /= 2;
+            frac_down = false;
+
+            frac_of += frac_step;
+        }
+
+        iter++;
+        if (iter > 100000) {
+            std::cout << "Identical motifs?" << std::endl;
+            exit(0);
+        }
+    }
+
+    for ( int i = 0; i < indices.size(); i++ ) {
+        if ( the_best == indices[i] ) return i;
+    }
+
+    std::cout << "Error" << std::endl;
+    exit(0);
+}
+
+
+
+int
+Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  ) {
+
+    int local_best = find_the_best( indices );
 
 
     float average_length = 0;
@@ -212,7 +332,8 @@ Motifs::write_cluster_info( std::ostream & out, std::vector<int> const & indices
         "ddg_norepack",
         "interface_sc",
         "score_per_res",
-        "vbuns5.5_heavy_ball_1.1"
+        "vbuns5.5_heavy_ball_1.1",
+        "ddg_per_1000_sasa"
     };
 
 
@@ -229,6 +350,18 @@ Motifs::write_cluster_info( std::ostream & out, std::vector<int> const & indices
     }
 
 
+    nlohmann::json const & best_js = get_json( indices[local_best] );
+
+    out << "Best_Length: " << std::setw(12) << std::left << best_js["end"].get<int>() - best_js["start"].get<int>() + 1;
+
+
+    for ( std::string const & write : to_write ) {
+
+        out << "Best_" << write << ": " << std::setw(12) << std::left << best_js[write].get<float>();
+    }
+
+
+    return local_best;
 }
 
 

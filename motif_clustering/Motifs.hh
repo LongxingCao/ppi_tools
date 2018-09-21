@@ -23,7 +23,11 @@ public:
     void load_jsons();
     void sort_motifs();
 
-    nlohmann::json const & get_json( int index ) { 
+    nlohmann::json & get_json( int index ) { 
+        return jsons[ sorted_indices[index] ];
+    }
+
+    nlohmann::json const & get_json( int index ) const { 
         return jsons[ sorted_indices[index] ];
     }
 
@@ -33,8 +37,12 @@ public:
         return motif_names[ sorted_indices[index] ];
     }
 
-    void
-    write_cluster_info( std::ostream & out, std::vector<int> const & indices );
+
+    int
+    find_the_best( std::vector<int> const & indices  );
+
+    int
+    write_best_info( std::ostream & out, std::vector<int> const & indices );
 
 
 private:

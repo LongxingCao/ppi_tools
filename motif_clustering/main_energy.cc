@@ -142,10 +142,18 @@ int main( int argc, char * argv[] )
         int    size     = clustered_pdbs[ii].size();
         f << "Cluster: " << std::setw(12) << std::left << ii + 1 << "Size: " << std::setw(12) << std::left << size;
 
-        motifs.write_cluster_info( f, clustered_indices[ii] );
+        int local_best = motifs.write_best_info( f, clustered_indices[ii] );
         f << std::endl;
 
-        for ( const std::string & fn : clustered_pdbs[ii] ) f << fn << " ";
+        f << clustered_pdbs[ii][local_best] << " ";
+        for ( int local = 0; local < clustered_pdbs[ii].size(); local++ ) {
+            if (local == local_best) continue;
+
+            const std::string & fn = clustered_pdbs[ii][local];
+
+            f << fn << " ";
+        }
+
         f << std::endl;
     }
     f.close();
