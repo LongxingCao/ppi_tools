@@ -72,13 +72,20 @@ int main( int argc, char * argv[] )
         cluster_cutoff = atof( argv[2] );
     }
 
-    std::sort(pdbs.begin(), pdbs.end(), comp);
+    // This sorts the pdbs!!!!!
+    Motifs motifs(pdbs);
 
+    // Don't use pdbs again in this file!!!!
+    // Only use motifs.get_pdb_name()
+
+    std::cout << "Clustering..." << std::endl;
 
     const int num_pdbs = pdbs.size();
     int num_threads = omp_get_max_threads();
-    Motifs motifs(pdbs);
+    
     std::vector<NWalign> tmaligns(num_threads);
+
+    int pdb_per_dot = num_pdbs / 109;
 
     // assign the first pdb to cluster 1.
     // intialize all the clusters
@@ -86,6 +93,7 @@ int main( int argc, char * argv[] )
     std::vector<int> clusters(num_pdbs, -1);
     int cluster_nums = 0;
     for ( int ii = 0; ii < num_pdbs; ++ii ) {
+        if ( ii % pdb_per_dot == 0 ) std::cout << "*" << std::flush;
         if ( -1 != clusters[ii] ) continue;
 
         clusters[ii] = cluster_nums;
@@ -100,12 +108,15 @@ int main( int argc, char * argv[] )
             tm.setup( motifs.get_coords(ii), motifs.get_coords(jj), motifs.length(ii), motifs.length(jj) );
             tm.align( );
 
+
             if ( tm.hack_TMscore() >= cluster_cutoff ) {
                 clusters[jj] = cluster_nums;
             }
         }
         ++cluster_nums;
     }
+
+    std::cout << std::endl;
 
     if ( 0 == cluster_nums ) {
         std::cout << "No clusters found!" << std::endl;
@@ -114,8 +125,10 @@ int main( int argc, char * argv[] )
 
     // collect all the cluster infos
     std::vector<std::vector< std::string > > clustered_pdbs( cluster_nums );
+    std::vector<std::vector< int > > clustered_indices( cluster_nums );
     for ( int ii = 0; ii < num_pdbs; ++ii ) {
-        clustered_pdbs[ clusters[ii] ].push_back( pdbs[ii] );
+        clustered_pdbs[ clusters[ii] ].push_back( motifs.get_pdb_name(ii) );
+        clustered_indices[ clusters[ii] ].push_back( ii );
     }
 
     std::fstream f( "cluster_results.list", std::ios::out);
@@ -124,11 +137,23 @@ int main( int argc, char * argv[] )
             exit(0);
     }
     for ( int ii = 0; ii < clustered_pdbs.size(); ++ii ) {
+
+
         int    size     = clustered_pdbs[ii].size();
-        double avg_ddg  = calc_average_ddg ( clustered_pdbs[ii] );
-        double avg_sasa = calc_average_sasa( clustered_pdbs[ii] );
-        f << "Cluster: " << std::setw(12) << std::left << ii + 1 << "Size: " << std::setw(12) << std::left << size << "Ddg: " << std::setw(14) << std::left << avg_ddg << "Sasa: " << std::setw(14) << std::left << avg_sasa << std::endl;
-        for ( const std::string & fn : clustered_pdbs[ii] ) f << fn << " ";
+        f << "Cluster: " << std::setw(12) << std::left << ii + 1 << "Size: " << std::setw(12) << std::left << size;
+
+        int local_best = motifs.write_best_info( f, clustered_indices[ii] );
+        f << std::endl;
+
+        f << clustered_pdbs[ii][local_best] << " ";
+        for ( int local = 0; local < clustered_pdbs[ii].size(); local++ ) {
+            if (local == local_best) continue;
+
+            const std::string & fn = clustered_pdbs[ii][local];
+
+            f << fn << " ";
+        }
+
         f << std::endl;
     }
     f.close();
