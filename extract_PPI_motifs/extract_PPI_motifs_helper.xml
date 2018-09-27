@@ -8,6 +8,11 @@
             <Reweight scoretype="fa_rep" weight="0.55" />
             <Reweight scoretype="fa_sol" weight="1.0" />
         </ScoreFunction>
+
+        <ScoreFunction name="vdw" weights="empty" >
+            <Reweight scoretype="fa_atr" weight="1.0" />
+            <Reweight scoretype="fa_rep" weight="0.55" />
+        </ScoreFunction>
     </SCOREFXNS>
     <RESIDUE_SELECTORS>
         <ResiduePDBInfoHasLabel name="RIF_Res" property="RIFRES" />
@@ -22,9 +27,13 @@
         Not name="Not_ala" selector="ala" />
         And name="RIF_Res_not_ala" selectors="RIF_Res,Not_ala" />
 
-	<ResidueName name="pro_and_gly_positions" residue_name3="PRO,GLY" />
+	    <ResidueName name="pro_and_gly_positions" residue_name3="PRO,GLY" />
         <ResidueName name="apolar" residue_name3="ALA,CYS,PHE,ILE,LEU,MET,THR,PRO,VAL,TRP,TYR" />
         <Not name="polar" selector="apolar" />
+
+        <ResidueName name="cgp" residue_name3="CYS,GLY,PRO" />
+        <Not name="not_cgp" selector="cgp" />
+        <And name="chainA_not_cgp" selectors="chainA,not_cgp" />
     </RESIDUE_SELECTORS>
     <TASKOPERATIONS>
         <ProteinInterfaceDesign name="pack_long" design_chain1="0" design_chain2="0" jump="1" interface_distance_cutoff="15"/>
@@ -41,6 +50,7 @@
 
         <DeleteRegionMover name="delete_polar" residue_selector="polar" rechain="false" />
 
+        <MutateResidue name="chainA_polyA" residue_selector="chainA_not_cgp" new_res="ALA" preserve_atom_coords="false" mutate_self="false" update_polymer_bond_dependent="false" />
     </MOVERS>
     <FILTERS>
         
@@ -48,6 +58,12 @@
         
         ################################### I think we should turn the repack_bound to false, but maybe not! ########################################################
         <Ddg name="ddg_norepack"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="sfxn" />
+        <Ddg name="ddg_norepack_polyA_pre"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="sfxn" />
+        <MoveBeforeFilter name="ddg_norepack_polyA" mover="chainA_polyA" filter="ddg_norepack_polyA_pre" confidence="0" />
+        <CalculatorFilter name="net_ddg_norepack" equation="ddg_norepack - ddg_norepack_polyA" threshold="-3.5" confidence="0">
+            <Var name="ddg_norepack_polyA" filter="ddg_norepack_polyA"/>
+            <Var name="ddg_norepack" filter="ddg_norepack"/>
+        </CalculatorFilter>
 
         
         <ShapeComplementarity name="interface_sc" verbose="0" min_sc="0.55" write_int_area="1" jump="1" confidence="0"/>
@@ -82,6 +98,13 @@
         <Ddg name="ddg_hydrophobic_pre"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="vdw_sol" />
         <MoveBeforeFilter name="ddg_hydrophobic" mover="delete_polar" filter="ddg_hydrophobic_pre" confidence="0"/>
 
+        <Ddg name="interface_vdw"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="vdw" />
+        <Ddg name="interface_polyA_vdw_pre"  threshold="-10" jump="1" repeats="1" repack="0" confidence="0" scorefxn="vdw" />
+        <MoveBeforeFilter name="interface_polyA_vdw" mover="chainA_polyA" filter="interface_polyA_vdw_pre" confidence="0" />
+        <CalculatorFilter name="net_interface_vdw" equation="interface_vdw - interface_polyA_vdw" threshold="-3.5" confidence="0">
+            <Var name="interface_polyA_vdw" filter="interface_polyA_vdw"/>
+            <Var name="interface_vdw" filter="interface_vdw"/>
+        </CalculatorFilter>
 
     </FILTERS>
 
@@ -98,6 +121,7 @@
         <Add filter="vbuns5.5_heavy_ball_1.1" />
         Add filter="sbuns5.5_heavy_ball_1.1" />
         <Add filter="hydrophobic_residue_contacts" />
+        <Add filter="interface_vdw" />
     </PROTOCOLS>
     <OUTPUT />
 </ROSETTASCRIPTS>
