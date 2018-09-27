@@ -7,47 +7,6 @@
 #include "NWalign.hh"
 #include "Motifs.hh"
 
-bool comp(std::string fn1, std::string fn2){
-    int x, y;
-    double ddg1, ddg2;
-
-    x = fn1.find("ddg", 0);
-    y = fn1.find("_", x);
-    ddg1 = atof(fn1.substr(x+3, y-x-3).c_str());
-
-    x = fn2.find("ddg", 0);
-    y = fn2.find("_", x);
-    ddg2 = atof(fn2.substr(x+3, y-x-3).c_str());
-
-    return ddg1 < ddg2;
-
-}
-
-double calc_average_ddg( const std::vector<std::string> & pdbs ) {
-    int size = pdbs.size();
-    int x, y;
-    double total_ddg = 0.0;
-    for ( const std::string & fn : pdbs ) {
-        x = fn.find("ddg", 0);
-        y = fn.find("_",   0);
-        total_ddg += atof( fn.substr(x+3, y-x-3).c_str() );
-    }
-
-    return total_ddg / size;
-}
-double calc_average_sasa( const std::vector<std::string> & pdbs ) {
-    int size = pdbs.size();
-    int x, y;
-    double total_sasa = 0.0;
-    for ( const std::string & fn : pdbs ) {
-        x = fn.find("sasa", 0);
-        y = fn.find("_",   0);
-        total_sasa += atof( fn.substr(x+4, y-x-4).c_str() );
-    }
-
-    return total_sasa / size;
-}
-
 int main( int argc, char * argv[] )
 {
     std::vector<std::string> pdbs;

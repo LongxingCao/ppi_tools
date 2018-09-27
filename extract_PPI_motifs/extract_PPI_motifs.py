@@ -41,6 +41,9 @@ filters_to_apply = [
 #"buns_heavy_ball_1.1",
 "vbuns5.5_heavy_ball_1.1",
 "hydrophobic_residue_contacts",
+"interface_vdw",
+"net_interface_vdw",
+"net_ddg_norepack",
 ]
 
 def move_chainA_far_away(pose):
@@ -62,16 +65,33 @@ def move_chainA_far_away(pose):
 parser = argparse.ArgumentParser()
 parser.add_argument("-ref_pdb", type=str, default="", help="the reference pdb file")
 parser.add_argument("-ddg_threshold", type=float, default=-20, help="the ddg cutoff value of the motif")
+parser.add_argument("-sc_threshold", type=float, default=0.60, help="the interface shape complementary value of the motif")
+parser.add_argument("-sasa_threshold", type=float, default=750, help="the interface buried sasa cutoff value of the motif")
 parser.add_argument("-multi_segs", type=bool, default=False, help="dump multi segments or not if they are connected by a loop")
 parser.add_argument("-out_prefix", type=str, default="", help="prefix on out files")
-parser.add_argument("-s", type=str, nargs="+", help="dump multi segments or not if they are connected by a loop")
-
-
-
-
+parser.add_argument("-s", type=str, nargs="*", help="name of the input pdb file")
+parser.add_argument("-l", type=str, help="a list file of all pdb files")
 args = parser.parse_args(sys.argv[1:])
 
-fnames = args.s
+if args.s == None:
+    assert (args.l != None)
+    with open(args.l) as f:
+        fnames = [line.strip() for line in f]
+else:
+    fnames = args.s
+
+# global settings
+ref_fname = args.ref_pdb
+ref_pose  = pose_from_file(ref_fname)
+align = protocols.simple_moves.AlignChainMover()
+align.pose( ref_pose )
+align.source_chain( 2)
+align.target_chain( 1)
+
+sasa_threshold = args.sasa_threshold
+sc_threshold = args.sc_threshold
+ddg_threshold = args.ddg_threshold
+multi_segs = args.multi_segs
 
 for fname in fnames:
     try:
@@ -87,22 +107,8 @@ for fname in fnames:
 
         print("Processing pdb file %s"%fname )
 
-        ref_fname = args.ref_pdb
-        ddg_threshold = args.ddg_threshold
-        multi_segs = args.multi_segs
-
         pose = pose_from_file(fname)
-        ref_pose = pose_from_file(ref_fname)
-
-
-        align = protocols.simple_moves.AlignChainMover()
-        align.pose( ref_pose )
-        align.source_chain( 2)
-        align.target_chain( 1)
         align.apply(pose)
-
-
-
 
         binder_target = pose.split_by_chain()
         binder = binder_target[1]
@@ -122,7 +128,7 @@ for fname in fnames:
         per_res_ddg = utility.vector1_double()
         # per_res_score = utility.vector1_double()
         # per_res_bound = utility.vector1_double()
-        for i in range(1, pose.size()+1):
+        for i in range(1, chainA_len+1):
             ddg = 2* ( pose.energies().residue_total_energy(i) - separate_pose.energies().residue_total_energy(i) )
             per_res_ddg.append(ddg)
             # per_res_score.append(separate_pose.energies().residue_total_energy(i))
@@ -146,7 +152,7 @@ for fname in fnames:
         per_res_ddg_ala = utility.vector1_double()
         # per_res_score = utility.vector1_double()
         # per_res_bound = utility.vector1_double()
-        for i in range(1, pose.size()+1):
+        for i in range(1, chainA_len+1):
             ddg = 2* ( poly_ala_binder_pose.energies().residue_total_energy(i) - poly_ala_binder_separate_pose.energies().residue_total_energy(i) )
             per_res_ddg_ala.append(ddg)
             # per_res_score.append(separate_pose.energies().residue_total_energy(i))
@@ -175,6 +181,7 @@ for fname in fnames:
             if (ii == 0):
                 seg_temp["start"] = 1
                 seg_temp["sec_type"] = dssp_str[ii]
+                continue
 
             if ( dssp_str[ii] != seg_temp["sec_type"]):
                 seg_temp["end"] = ii
@@ -187,19 +194,21 @@ for fname in fnames:
                 seg_temp["end"] = ii + 1
                 segs.append(seg_temp)
 
+        for seg in segs:
+            seg["len"] = seg["end"] - seg["start"] + 1
+            seg["sequence"] = binder.sequence()[seg["start"]-1:seg["end"]+1-1]
+
 
         for seg in segs:
             seg["ddg"] = 0
             for ires in range(seg["start"], seg["end"]+1):    
                 seg["ddg"] += per_res_ddg[ires]
 
-        good_motifs = []
 
         for seg in segs:
             if ( seg["ddg"] > ddg_threshold ):
                 continue
 
-            good_motifs.append(seg)
 
             ft = core.kinematics.FoldTree( seg["end"] - seg["start"] + 1 )
             motif_res = utility.vector1_unsigned_long()
@@ -229,14 +238,18 @@ for fname in fnames:
                 if (not extra is None):
                     seg["interface_sc_median_dist"] = extra
 
+            if seg['interface_sc'] < sc_threshold : continue
+            if seg['interface_buried_sasa'] < sasa_threshold : continue
+
             ddg_hydrophobic_pre = objs.get_filter("ddg_hydrophobic_pre").subfilter()
             tmp = pose.clone()
             remove_polars.apply(tmp)
             seg["ddg_hydrophobic"] = ddg_hydrophobic_pre.compute(tmp)
 
-
-            seg["per_res_ddg"] = per_res_ddg0[seg["start"]-1:seg["end"]+1-1]
-            seg["per_res_ddg_ala"] = per_res_ddg0_ala[seg["start"]-1:seg["end"]+1-1]
+            hotspots_energy = []
+            for ii in range(seg["start"], seg["end"]+1):
+                hotspots_energy.append(per_res_ddg0[ii-1] - per_res_ddg0_ala[ii-1])
+            seg["hotspots"] = hotspots_energy
 
             fout = ftag + "_%i_%i_%s.pdb.gz"%(seg["start"], seg["end"], seg["sec_type"])
             motif_alone.dump_pdb(fout)
