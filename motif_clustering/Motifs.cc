@@ -201,10 +201,11 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
 
     // These are the filters we care about for sorting
     std::vector<std::pair<std::string,bool>> sort_term_high_good {
-        { "interface_buried_sasa", true },
-        { "ddg_norepack", false },
-        { "interface_sc", true },
-        { "ddg_per_1000_sasa", false }
+        // { "interface_buried_sasa", true },
+        { "ddg_norepack", false }
+        // { "interface_sc", true },
+        // { "interface_sc_median_dist", false}
+        // { "ddg_per_1000_sasa", false }
     };
 
     // Initialize the bests array
@@ -234,6 +235,9 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
         }
     }
 
+    // std::vector<int> debug_sizes;
+    // std::vector<float> debug_fracs;
+
 
     // Do a simple little algorithm
     // Filter at frac_of best for each of the different terms
@@ -257,9 +261,17 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
 
             bool passed_filters = true;
             for ( int i = 0; i < sort_term_high_good.size(); i++ ) {
-                float cut_value = bests[i]*frac_of; 
-                std::string const & term = sort_term_high_good[i].first;
                 bool high_good = sort_term_high_good[i].second;
+
+                float abs_frac = std::abs(bests[i]*(1-frac_of));
+                float cut_value = 0;
+                if ( high_good ) {
+                    cut_value = bests[i] - abs_frac;
+                } else {
+                    cut_value = bests[i] + abs_frac;
+                }
+                
+                std::string const & term = sort_term_high_good[i].first;
 
                 if ( high_good ) {
                     passed_filters &= js[term] > cut_value;
@@ -272,6 +284,8 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
                 best_contenders.push_back( ind );
             }
         }
+        // debug_sizes.push_back(best_contenders.size());
+        // debug_fracs.push_back(frac_of);
 
         if ( best_contenders.size() == 1 ) {
             the_best = best_contenders[0];
@@ -293,8 +307,18 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
         }
 
         iter++;
-        if (iter > 100000) {
-            std::cout << "Identical motifs?" << std::endl;
+        if (iter > 100000 ) {
+            std::cout << "Error!! Identical motifs?" << std::endl;
+            // for ( int i = 0; i < debug_sizes.size(); i++ ) {
+            //     std::cout << "  " << debug_sizes[i] << " " << debug_fracs[i] << std::endl;
+            // }
+            std::cout << "bests" << std::endl;
+            for ( float best : bests ) {
+                std::cout << "  " << best << std::endl;
+            }
+            // for ( int ind : indices ) {
+            //     std::cout << "  " << get_pdb_name( ind ) << std::endl;
+            // }
             exit(0);
         }
     }
@@ -333,7 +357,9 @@ Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  )
         "interface_sc",
         "score_per_res",
         "vbuns5.5_heavy_ball_1.1",
-        "ddg_per_1000_sasa"
+        "ddg_per_1000_sasa",
+        "fa_atr_pocket",
+        "contact_molecular_surface"
     };
 
 
@@ -346,18 +372,18 @@ Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  )
 
         average /= indices.size();
 
-        out << write << ": " << std::setw(12) << std::left << average;
+        out << write << ": " << std::setw(12) << std::left << average << " ";
     }
 
 
     nlohmann::json const & best_js = get_json( indices[local_best] );
 
-    out << "Best_Length: " << std::setw(12) << std::left << best_js["end"].get<int>() - best_js["start"].get<int>() + 1;
+    out << "Best_Length: " << std::setw(12) << std::left << best_js["end"].get<int>() - best_js["start"].get<int>() + 1 << " ";
 
 
     for ( std::string const & write : to_write ) {
 
-        out << "Best_" << write << ": " << std::setw(12) << std::left << best_js[write].get<float>();
+        out << "Best_" << write << ": " << std::setw(12) << std::left << best_js[write].get<float>() << " ";
     }
 
 
