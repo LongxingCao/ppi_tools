@@ -41,7 +41,7 @@ def compute_filter(pose, filter, filtername):
 
 filters_to_apply = [
 "interface_buried_sasa",
-"ddg_norepack",
+"ddg_norepack", 
 # "ddg_hydrophobic",    // we have to do this manually because it doesn't have compute
 "interface_sc",
 "score_per_res",
@@ -351,27 +351,27 @@ for fname in fnames:
                 seg['ddg'] = best_ddg
                 new_segs.append(seg)
 
-                seg = dict(og_seg)
-                seg['sec_type'] = "C"
-                best_ddg = 0
-                best_start = None
-                best_end = None
-                for ires in range(seg["start"], seg["end"]+1):
-                    if ( ires + motif_size > seg["end"] + 1 ):
-                        continue
-                    # ddg of every other
-                    ddg = np.sum(per_res_ddg[ires:ires+motif_size:2])
-                    if ( ddg < best_ddg ):
-                        best_ddg = ddg
-                        best_start = ires
-                        best_end = ires + motif_size-1
+                # seg = dict(og_seg)
+                # seg['sec_type'] = "C"
+                # best_ddg = 0
+                # best_start = None
+                # best_end = None
+                # for ires in range(seg["start"], seg["end"]+1):
+                #     if ( ires + motif_size > seg["end"] + 1 ):
+                #         continue
+                #     # ddg of every other
+                #     ddg = np.sum(per_res_ddg[ires:ires+motif_size:2])
+                #     if ( ddg < best_ddg ):
+                #         best_ddg = ddg
+                #         best_start = ires
+                #         best_end = ires + motif_size-1
 
-                if ( best_start is None ):
-                    continue
-                seg["start"] = best_start
-                seg["end"] = best_end
-                seg['ddg'] = best_ddg
-                new_segs.append(seg)
+                # if ( best_start is None ):
+                #     continue
+                # seg["start"] = best_start
+                # seg["end"] = best_end
+                # seg['ddg'] = best_ddg
+                # new_segs.append(seg)
 
             segs = new_segs
 
