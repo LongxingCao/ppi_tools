@@ -104,7 +104,8 @@ parser.add_argument("-pocket_threshold", type=float, default=0, help="the ddg cu
 parser.add_argument("-pocket_res", type=str, default="", help="the specific residues that make up the pocket")
 parser.add_argument("-multi_segs", type=bool, default=False, help="dump multi segments or not if they are connected by a loop")
 parser.add_argument("-out_prefix", type=str, default="", help="prefix on out files")
-parser.add_argument("-motif_size_helix", type=int, default=-1, help="minimimum size for helix motifs")
+parser.add_argument("-motif_size_helix", type=int, default=-1, help="maximum size for helix motifs")
+parser.add_argument("-motif_size_strand", type=int, default=-1, help="maximum size for strand motifs")
 parser.add_argument("pdbs", type=str, nargs="*", help="Inputs")
 parser.add_argument("-in:file:silent", type=str, default="")
 
@@ -320,6 +321,61 @@ for fname in fnames:
             seg["ddg"] = 0
             for ires in range(seg["start"], seg["end"]+1):    
                 seg["ddg"] += per_res_ddg[ires]
+
+
+        if ( args.motif_size_strand > 0 ):
+            motif_size = args.motif_size_strand
+            new_segs = []
+            for seg in segs:
+                if ( seg["sec_type"] != "E" ):
+                    new_segs.append(seg)
+                    continue
+                og_seg = dict(seg)
+
+                best_ddg = 0
+                best_start = None
+                best_end = None
+                for ires in range(seg["start"], seg["end"]+1):
+                    if ( ires + motif_size > seg["end"] + 1 ):
+                        continue
+                    ddg = np.sum(per_res_ddg[ires:ires+motif_size])
+                    if ( ddg < best_ddg ):
+                        best_ddg = ddg
+                        best_start = ires
+                        best_end = ires + motif_size-1
+
+                if ( best_start is None ):
+                    continue
+                seg["start"] = best_start
+                seg["end"] = best_end
+                seg['ddg'] = best_ddg
+                new_segs.append(seg)
+
+                seg = dict(og_seg)
+                seg['sec_type'] = "C"
+                best_ddg = 0
+                best_start = None
+                best_end = None
+                for ires in range(seg["start"], seg["end"]+1):
+                    if ( ires + motif_size > seg["end"] + 1 ):
+                        continue
+                    # ddg of every other
+                    ddg = np.sum(per_res_ddg[ires:ires+motif_size:2])
+                    if ( ddg < best_ddg ):
+                        best_ddg = ddg
+                        best_start = ires
+                        best_end = ires + motif_size-1
+
+                if ( best_start is None ):
+                    continue
+                seg["start"] = best_start
+                seg["end"] = best_end
+                seg['ddg'] = best_ddg
+                new_segs.append(seg)
+
+            segs = new_segs
+
+
 
         if (args.pocket_res != ""):
             for seg in segs:
