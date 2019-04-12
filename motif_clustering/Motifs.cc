@@ -345,6 +345,7 @@ Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  )
     }
     average_length /= indices.size();
     out << "Length: " << std::setw(12) << std::left << average_length;
+    out << " Sec_type: " << get_json( indices.front() )["sec_type"].get<std::string>();
 
 
 
