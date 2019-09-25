@@ -50,12 +50,14 @@ int main( int argc, char * argv[] )
     // intialize all the clusters
     // the cluster index starts from 0.
     std::vector<int> clusters(num_pdbs, -1);
+    std::vector<int> alignments(num_pdbs, -1);
     int cluster_nums = 0;
     for ( int ii = 0; ii < num_pdbs; ++ii ) {
         if ( ii % pdb_per_dot == 0 ) std::cout << "*" << std::flush;
         if ( -1 != clusters[ii] ) continue;
 
         clusters[ii] = cluster_nums;
+        alignments[ii] = 0;
         #pragma omp parallel for schedule (static)
         for ( int jj = ii+1; jj < num_pdbs; ++jj ) {
             if (-1 != clusters[jj]) continue;
@@ -70,6 +72,7 @@ int main( int argc, char * argv[] )
 
             if ( tm.hack_TMscore() >= cluster_cutoff ) {
                 clusters[jj] = cluster_nums;
+                alignments[jj] = tm.get_first_encoded_alignment_pair( );
             }
         }
         ++cluster_nums;
@@ -85,9 +88,11 @@ int main( int argc, char * argv[] )
     // collect all the cluster infos
     std::vector<std::vector< std::string > > clustered_pdbs( cluster_nums );
     std::vector<std::vector< int > > clustered_indices( cluster_nums );
+    std::vector<std::vector< int> > clustered_alignments( cluster_nums );
     for ( int ii = 0; ii < num_pdbs; ++ii ) {
         clustered_pdbs[ clusters[ii] ].push_back( motifs.get_pdb_name(ii) );
         clustered_indices[ clusters[ii] ].push_back( ii );
+        clustered_alignments[ clusters[ii] ].push_back( alignments[ii] );
     }
 
     std::fstream f( "cluster_results.list", std::ios::out);
@@ -104,9 +109,15 @@ int main( int argc, char * argv[] )
         int local_best = motifs.write_best_info( f, clustered_indices[ii] );
         f << std::endl;
 
-        f << clustered_pdbs[ii][local_best] << " ";
+        // dump the alignment info
+        for( int local = 0; local < clustered_pdbs[ii].size(); local++ ) {
+            f << clustered_alignments[ii][local] << " ";
+        }
+        f << std::endl;
+
+        //f << clustered_pdbs[ii][local_best] << " ";
         for ( int local = 0; local < clustered_pdbs[ii].size(); local++ ) {
-            if (local == local_best) continue;
+            //if (local == local_best) continue;
 
             const std::string & fn = clustered_pdbs[ii][local];
 

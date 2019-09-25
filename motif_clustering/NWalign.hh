@@ -18,6 +18,7 @@ public:
     void traceback( );
     void align( );
     float hack_TMscore(  );
+    int get_first_encoded_alignment_pair( );
 
     void setup( float *x, float *y, int len1, int len2);
     void allocate( );

@@ -117,6 +117,19 @@ float NWalign::hack_TMscore(  ) {
     return TMscore / Lnorm;
 }
 
+// this function return the first alignment pair, indexed from 0 and encoded as 1000*i+j
+// it is very easy to decode
+// i = x / 1000
+// j = x % 1000
+int NWalign::get_first_encoded_alignment_pair( ) {
+    for ( int ii = 0; ii < ylen; ++ii ) {
+        if ( -1 != j2i[ii] ) {
+            return j2i[ii] * 1000 + ii;
+        }
+    }
+    return -1;
+}
+
 void NWalign::setup( float *x, float *y, int len1, int len2 ) {
 
     Lnorm = getmin( len1, len2 );
