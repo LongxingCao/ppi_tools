@@ -3,6 +3,7 @@
 #include <fstream>
 #include <algorithm>
 #include <omp.h>
+#include <sstream>
 
 #include "NWalign.hh"
 #include "Motifs.hh"
@@ -11,7 +12,7 @@ int main( int argc, char * argv[] )
 {
     std::vector<std::string> pdbs;
     double cluster_cutoff;
-    if ( argc != 3 ) {
+    if ( argc < 4 ) {
         std::cout << "Usage: " << argv[0] << " pdblist.txt cluster_cutoff" << std::endl;
     } else {
         std::fstream f( argv[1], std::ios::in );
@@ -31,6 +32,11 @@ int main( int argc, char * argv[] )
         cluster_cutoff = atof( argv[2] );
     }
 
+    bool same_length = argc >= 4;
+    if ( same_length ) {
+        std::cout << "Only clustering pdbs of same length!!!" << std::endl;
+    }
+
     // This sorts the pdbs!!!!!
     Motifs motifs(pdbs);
 
@@ -45,6 +51,9 @@ int main( int argc, char * argv[] )
     std::vector<NWalign> tmaligns(num_threads);
 
     int pdb_per_dot = num_pdbs / 109;
+    if ( pdb_per_dot == 0 ) {
+        pdb_per_dot = 1;
+    }
 
     // assign the first pdb to cluster 1.
     // intialize all the clusters
@@ -61,6 +70,8 @@ int main( int argc, char * argv[] )
         #pragma omp parallel for schedule (static)
         for ( int jj = ii+1; jj < num_pdbs; ++jj ) {
             if (-1 != clusters[jj]) continue;
+
+            if ( same_length && motifs.length_hash(ii) != motifs.length_hash(jj) ) continue;
 
             int thread = omp_get_thread_num();
 
@@ -95,13 +106,13 @@ int main( int argc, char * argv[] )
         clustered_alignments[ clusters[ii] ].push_back( alignments[ii] );
     }
 
-    std::fstream f( "cluster_results.list", std::ios::out);
-    if (!f.is_open()) {
-        std::cout << "Error opening file cluster_results.liist" << std::endl;
-            exit(0);
-    }
-    for ( int ii = 0; ii < clustered_pdbs.size(); ++ii ) {
+    std::vector<std::string> all_strings(clustered_pdbs.size());
 
+    int iters = clustered_pdbs.size();
+    #pragma omp parallel for schedule (dynamic, 1)
+    for ( int ii = 0; ii < iters; ++ii ) {
+
+        std::stringstream f;
 
         int    size     = clustered_pdbs[ii].size();
         f << "Cluster: " << std::setw(12) << std::left << ii + 1 << "Size: " << std::setw(12) << std::left << size;
@@ -125,7 +136,21 @@ int main( int argc, char * argv[] )
         }
 
         f << std::endl;
+
+        all_strings[ii] = f.str();
+
     }
+
+    std::fstream f( "cluster_results.list", std::ios::out);
+    if (!f.is_open()) {
+        std::cout << "Error opening file cluster_results.liist" << std::endl;
+            exit(0);
+    }
+
+    for ( std::string const & str : all_strings ) {
+        f << str;
+    }
+
     f.close();
 
 

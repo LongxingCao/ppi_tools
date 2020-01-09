@@ -105,6 +105,7 @@
             <Var name="interface_polyA_vdw" filter="interface_polyA_vdw"/>
             <Var name="interface_vdw" filter="interface_vdw"/>
         </CalculatorFilter>
+        <ContactMolecularSurface name="contact_molecular_surface" distance_weight="0.5" target_selector="chainA" binder_selector="chainB" confidence="0" />
 
     </FILTERS>
 
@@ -122,6 +123,7 @@
         Add filter="sbuns5.5_heavy_ball_1.1" />
         <Add filter="hydrophobic_residue_contacts" />
         <Add filter="interface_vdw" />
+        <Add filter="contact_molecular_surface" />
     </PROTOCOLS>
     <OUTPUT />
 </ROSETTASCRIPTS>

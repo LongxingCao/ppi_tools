@@ -94,6 +94,9 @@ void Motifs::sort_motifs( ) {
 void Motifs::load_jsons(  ) {
 
     int pdb_per_dot = motif_nums / 109;
+    if ( pdb_per_dot == 0 ) {
+        pdb_per_dot = 1;
+    }
     for ( int imotif = 0; imotif < motif_nums; ++imotif ) {
         if ( imotif % pdb_per_dot == 0 ) std::cout << "*" << std::flush;
 
@@ -123,6 +126,23 @@ void Motifs::load_jsons(  ) {
 
         jfile.close();
 
+        nlohmann::json & js = jsons[imotif];
+        js["length_short"] = 0;
+        js["length_long"] = 0;
+        js["length"] = 0;
+        if ( js.find("start") != js.end() ) {
+            js["length"] = js["end"].get<int>() - js["start"].get<int>() + 1;
+        }
+        if ( js.find("start1") != js.end() ) {
+            float val1 = js["end1"].get<int>() - js["start1"].get<int>() + 1;
+            float val2 = js["end2"].get<int>() - js["start2"].get<int>() + 1;
+            js["length_short"] = std::min(val1, val2);
+            js["length_long"] = std::max(val1, val2);
+        }
+
+
+        js["length_hash"] = js["length_short"].get<int>() + js["length_long"].get<int>()*100 + js["length"].get<int>()*10000;
+
     }
     std::cout << std::endl;
 }
@@ -131,6 +151,9 @@ void Motifs::load_jsons(  ) {
 void Motifs::load_motifs(  ) {
 
     int pdb_per_dot = motif_nums / 109;
+    if ( pdb_per_dot == 0 ) {
+        pdb_per_dot = 1;
+    }
     for ( int imotif = 0; imotif < motif_nums; ++imotif ) {
         if ( imotif % pdb_per_dot == 0 ) std::cout << "*" << std::flush;
 
@@ -194,17 +217,21 @@ int
 Motifs::find_the_best( std::vector<int> const & indices  ) {
 
     // Calculate this term
-    for ( int ind : indices ) {
-        nlohmann::json & js = get_json( ind );
-        js["ddg_per_1000_sasa"] = js["ddg_norepack"].get<float>() / js["interface_buried_sasa"].get<float>() * 1000;
-    }
+    // for ( int ind : indices ) {
+    //     nlohmann::json & js = get_json( ind );
+    //     js["ddg_per_1000_sasa"] = js["ddg_norepack"].get<float>() / js["interface_buried_sasa"].get<float>() * 1000;
+    // }
 
     // These are the filters we care about for sorting
     std::vector<std::pair<std::string,bool>> sort_term_high_good {
-        { "interface_buried_sasa", true },
-        { "ddg_norepack", false },
-        { "interface_sc", true },
-        { "ddg_per_1000_sasa", false }
+        // { "interface_buried_sasa", true },
+        { "ddg", false },
+        { "hbond_to_buried_crit", true },
+        { "hbond_to_crit", true },
+        { "buried_crit_unsat", false },
+        // { "interface_sc", true },
+        // { "interface_sc_median_dist", false}
+        // { "ddg_per_1000_sasa", false }
     };
 
     // Initialize the bests array
@@ -234,6 +261,11 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
         }
     }
 
+    std::vector<double> random_by_index( indices.size(), 0 );
+
+    // std::vector<int> debug_sizes;
+    // std::vector<float> debug_fracs;
+
 
     // Do a simple little algorithm
     // Filter at frac_of best for each of the different terms
@@ -246,25 +278,40 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
     bool frac_down = true;  // what direction we are currently going
 
     int the_best = -1;
+    std::vector<int> last_nonzero_contenders;
 
     int iter = 0;
     while ( the_best == -1 ) {
 
         std::vector<int> best_contenders;
 
-        for ( int ind : indices ) {
+
+        for ( int iind = 0; iind < indices.size(); iind++ ) {
+            int ind = indices[iind];
+
             nlohmann::json & js = get_json( ind );
 
             bool passed_filters = true;
             for ( int i = 0; i < sort_term_high_good.size(); i++ ) {
-                float cut_value = bests[i]*frac_of; 
-                std::string const & term = sort_term_high_good[i].first;
                 bool high_good = sort_term_high_good[i].second;
 
+                float abs_frac = std::abs(bests[i]*(1-frac_of));
+                float cut_value = 0;
                 if ( high_good ) {
-                    passed_filters &= js[term] > cut_value;
+                    cut_value = bests[i] - abs_frac;
                 } else {
-                    passed_filters &= js[term] < cut_value;
+                    cut_value = bests[i] + abs_frac;
+                }
+                
+                std::string const & term = sort_term_high_good[i].first;
+
+                float use_value = js[term];
+                use_value += random_by_index[iind];
+
+                if ( high_good ) {
+                    passed_filters &= use_value >= cut_value;
+                } else {
+                    passed_filters &= use_value <= cut_value;
                 }
             }
 
@@ -272,6 +319,8 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
                 best_contenders.push_back( ind );
             }
         }
+        // debug_sizes.push_back(best_contenders.size());
+        // debug_fracs.push_back(frac_of);
 
         if ( best_contenders.size() == 1 ) {
             the_best = best_contenders[0];
@@ -292,10 +341,54 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
             frac_of += frac_step;
         }
 
+        if ( best_contenders.size() > 0 ) {
+            last_nonzero_contenders = best_contenders;
+        }
+
         iter++;
-        if (iter > 100000) {
+        // std::cout << frac_of << " " << best_contenders.size() << std::endl;
+        // if ( iter == 1000 ) {
+        //     std::cout << "Identical motifs detected, adding noise" << std::endl;
+
+        //     for ( int i = 0; i < random_by_index.size(); i++ ) {
+        //         random_by_index[i] = 0.001 * std::rand();
+        //     }
+        //     frac_of = 1;
+        //     frac_step = 0.01;
+        //     frac_down = true;
+        // }
+
+        if (iter > 10000 && last_nonzero_contenders.size() > 0) {
             std::cout << "Identical motifs?" << std::endl;
-            exit(0);
+            the_best = last_nonzero_contenders[0];
+            // break
+            // std::cout << "bests" << std::endl;
+            // for ( float best : bests ) {
+            //     std::cout << "  " << best << std::endl;
+            // }
+            // exit(0);
+        }
+
+        if (iter > 100000 ) {
+            std::cout << "Unresolvable" << frac_of<< std::endl;
+            // the_best = best_contenders[0];
+            // break
+            std::cout << "bests" << std::endl;
+            for ( float best : bests ) {
+                std::cout << "  " << best << std::endl;
+            }
+
+            // for ( int i = 0; i < debug_sizes.size(); i++ ) {
+            //     std::cout << "  " << debug_sizes[i] << " " << debug_fracs[i] << std::endl;
+            // }
+            // std::cout << "bests" << std::endl;
+            // for ( float best : bests ) {
+            //     std::cout << "  " << best << std::endl;
+            // }
+            // for ( int ind : indices ) {
+            //     std::cout << "  " << get_pdb_name( ind ) << std::endl;
+            // }
+            exit(1);
         }
     }
 
@@ -314,26 +407,35 @@ Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  )
 
     int local_best = find_the_best( indices );
 
-
     float average_length = 0;
-    for ( int ind : indices ) {
-        average_length += get_json( ind )["end"].get<int>() - get_json( ind )["start"].get<int>() + 1;
-    }
+    // for ( int ind : indices ) {
+    //     average_length += get_json( ind )["end"].get<int>() - get_json( ind )["start"].get<int>() + 1;
+    // }
     average_length /= indices.size();
-    out << "Length: " << std::setw(12) << std::left << average_length;
+    // out << "Length: " << std::setw(12) << std::left << average_length;
+    out << " Sec_type: " << get_json( indices.front() )["sec_type"].get<std::string>() << " ";
 
 
 
     std::vector<std::string> to_write {
-        "interface_sc_median_dist",
-        "ddg_hydrophobic",
-        "hydrophobic_residue_contacts",
-        "interface_buried_sasa",
-        "ddg_norepack",
-        "interface_sc",
-        "score_per_res",
-        "vbuns5.5_heavy_ball_1.1",
-        "ddg_per_1000_sasa"
+        // "interface_sc_median_dist",
+        // "ddg_hydrophobic",
+        // "hydrophobic_residue_contacts",
+        // "interface_buried_sasa",
+        // "ddg_norepack",
+        // "interface_sc",
+        // "score_per_res",
+        // "vbuns5.5_heavy_ball_1.1",
+        // "ddg_per_1000_sasa",
+        // "fa_atr_pocket",
+        // "contact_molecular_surface",
+        "length_short",
+        "length_long",
+        "length",
+        "buried_crit_unsat",
+        "hbond_to_buried_crit",
+        "hbond_to_crit",
+        "ddg"
     };
 
 
@@ -346,18 +448,18 @@ Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  )
 
         average /= indices.size();
 
-        out << write << ": " << std::setw(12) << std::left << average;
+        out << write << ": " << std::setw(12) << std::left << average << " ";
     }
 
 
     nlohmann::json const & best_js = get_json( indices[local_best] );
 
-    out << "Best_Length: " << std::setw(12) << std::left << best_js["end"].get<int>() - best_js["start"].get<int>() + 1;
+    // out << "Best_Length: " << std::setw(12) << std::left << best_js["end"].get<int>() - best_js["start"].get<int>() + 1 << " ";
 
 
     for ( std::string const & write : to_write ) {
 
-        out << "Best_" << write << ": " << std::setw(12) << std::left << best_js[write].get<float>();
+        out << "Best_" << write << ": " << std::setw(12) << std::left << best_js[write].get<float>() << " ";
     }
 
 
