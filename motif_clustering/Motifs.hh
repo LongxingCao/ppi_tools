@@ -30,6 +30,7 @@ public:
     nlohmann::json const & get_json( int index ) const { 
         return jsons[ sorted_indices[index] ];
     }
+    int length_hash( int index ) { return get_json(index)["length_hash"]; }
 
     nlohmann::json const & direct_access_json( int pdb_index ) const { return jsons[pdb_index]; }
 
