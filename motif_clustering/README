@@ -1,3 +1,6 @@
+How to compile:
+g++ -O3 -std=c++11  main_energy.cc Motifs.cc NWalign.cc util.cc gzstream.C -lz -fopenmp -o cluster
+
+Not sure what this is:
 g++ -O3 -Wall -fPIC -std=c++11 -shared -I /home/longxing/pybind11/include/ -I /usr/include/python2.7/ tmalign.cc NWalign.cc Motif.cc -o tmscore.so
 
-g++ -O3 -std=c++11  main_energy.cc Motifs.cc NWalign.cc util.cc gzstream.C -lz -fopenmp -o cluster
