@@ -12,7 +12,7 @@ int main( int argc, char * argv[] )
 {
     std::vector<std::string> pdbs;
     double cluster_cutoff;
-    if ( argc < 4 ) {
+    if ( argc < 3 ) {
         std::cout << "Usage: " << argv[0] << " pdblist.txt cluster_cutoff" << std::endl;
     } else {
         std::fstream f( argv[1], std::ios::in );
