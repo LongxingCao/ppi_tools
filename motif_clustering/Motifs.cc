@@ -226,9 +226,9 @@ Motifs::find_the_best( std::vector<int> const & indices  ) {
     std::vector<std::pair<std::string,bool>> sort_term_high_good {
         // { "interface_buried_sasa", true },
         { "ddg", false },
-        { "hbond_to_buried_crit", true },
-        { "hbond_to_crit", true },
-        { "buried_crit_unsat", false },
+        //{ "hbond_to_buried_crit", true },
+        //{ "hbond_to_crit", true },
+        //{ "buried_crit_unsat", false },
         // { "interface_sc", true },
         // { "interface_sc_median_dist", false}
         // { "ddg_per_1000_sasa", false }
@@ -432,9 +432,9 @@ Motifs::write_best_info( std::ostream & out, std::vector<int> const & indices  )
         "length_short",
         "length_long",
         "length",
-        "buried_crit_unsat",
-        "hbond_to_buried_crit",
-        "hbond_to_crit",
+        //"buried_crit_unsat",
+        //"hbond_to_buried_crit",
+        //"hbond_to_crit",
         "ddg"
     };
 
